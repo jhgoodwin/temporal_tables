@@ -1,3 +1,19 @@
+CREATE OR REPLACE FUNCTION get_system_time()
+RETURNS timestamptz AS
+  $$
+    SELECT coalesce(current_setting('temporal.system_time', TRUE)::timestamptz, current_timestamp);
+    /*
+    Function is not technically immutable, but this will cause it to only be invoked once per query per use.
+    In postgres 10 it does not seem to be causing it to cache between queries and gets called once per use.
+    */
+  $$ LANGUAGE SQL IMMUTABLE ;
+
+CREATE OR REPLACE FUNCTION set_system_time(new_system_time timestamptz)
+RETURNS timestamptz AS
+  $$
+    SELECT set_config('temporal.system_time', new_system_time::text, false)::timestamptz;
+  $$ LANGUAGE SQL;
+
 CREATE OR REPLACE FUNCTION versioning()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -5,7 +21,7 @@ DECLARE
   history_table text;
   manipulate jsonb;
   commonColumns text[];
-  time_stamp_to_use timestamptz := current_timestamp;
+  time_stamp_to_use timestamptz := get_system_time();
   range_lower timestamptz;
   transaction_info txid_snapshot;
   existing_range tstzrange;
